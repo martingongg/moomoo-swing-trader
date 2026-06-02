@@ -12,6 +12,11 @@ Core Long Filters / Signals:
 - Positive/short-term GEX (0-5 DTE) from live option Greeks + OI (dealer hedging support)
 - Constructive earnings history (5-trading-day post-earn drift backtest) + forward PE context
 
+Improvements based on analysis of user's Past Trades.rtf (winning realized trades in AAPL, NVDA, MRVL, TXN, ADBE, NOW, HOOD, SOFI, QCOM etc.):
+- Expanded DEFAULT_WATCHLIST with names that appeared in profitable swings/options trades.
+- Volume ranking and "top traded" now prioritize dollar turnover (not just share volume) -- critical for high-priced tech names that dominated the win list.
+- Added explicit high $ turnover bonus in scoring.
+
 Fully self-contained CLI. Requires running moomoo OpenD for full features.
 
 Usage examples:
@@ -53,9 +58,9 @@ console = Console()
 # ========================== CONFIG / TUNABLES ==========================
 
 DEFAULT_WATCHLIST = [
-    "AAPL", "TSLA", "NVDA", "AMD", "META", "AMZN", "MSFT", "GOOGL", "SMCI", "PLTR",
-    "COIN", "MSTR", "ARM", "AVGO", "CRM", "INTC", "QCOM", "MU", "SNOW",
-    "UBER", "ABNB", "SHOP", "RBLX", "DKNG", "HOOD", "SOFI", "LCID", "RIVN", "F",
+    "AAPL", "NVDA", "AMD", "META", "MSFT", "GOOGL", "AVGO", "QCOM", "MRVL", "TXN", "ADBE", "NOW",
+    "TSLA", "SMCI", "PLTR", "COIN", "MSTR", "ARM", "CRM", "INTC", "MU", "SNOW",
+    "HOOD", "SOFI", "UBER", "ABNB", "SHOP", "RBLX", "DKNG", "LCID", "RIVN", "F",
     "BAC", "JPM", "XOM", "CVX", "UNH", "LLY", "JNJ", "PFE", "MRNA", "BABA",
 ]
 
@@ -72,7 +77,8 @@ SCORE_WEIGHTS = {
 
 # Thresholds
 GAP_UP_MIN_PCT = 0.008          # 0.8%+ gap considered interesting
-MIN_ABS_VOLUME_TODAY = 5_000_000  # for "good volume" filter in scan
+MIN_ABS_VOLUME_TODAY = 5_000_000  # for "good volume" filter in scan (share volume)
+MIN_ABS_TURNOVER_TODAY = 100_000_000  # $100M+ dollar volume today for "top traded" (better for high-priced names like AAPL/NVDA/ADBE from past winners)
 VWAP_HOLD_BARS = 6              # how many recent 3m bars we want price >= VWAP for "floor"
 MA_CROSS_WINDOW = 3             # look back N bars for crossover signal
 RESISTANCE_LOOKBACK = 120       # trading days for swing high detection
@@ -434,14 +440,18 @@ def compute_vwap_floor(intraday_df: pd.DataFrame, current_price: Optional[float]
 
 
 def compute_volume_inflow(moomoo_client: Optional[MoomooClient], code: str, snapshot_row: Optional[pd.Series], daily_df: pd.DataFrame) -> Dict[str, Any]:
-    """Volume today + inflow signal. Rank is provided at batch level."""
+    """Volume today + inflow signal. Uses share volume + turnover ($ volume) for high-priced names.
+    Based on analysis of user's winning trades (e.g. AAPL, NVDA, ADBE, MRVL, TXN etc which often have high $ volume).
+    Rank is provided at batch level."""
     vol_today = None
+    turnover_today = None
     vol_ratio = None
     inflow = 0.0
     detail = ""
 
     if snapshot_row is not None and not snapshot_row.empty:
         vol_today = float(snapshot_row.get("volume", 0) or 0)
+        turnover_today = float(snapshot_row.get("turnover", 0) or 0)
         # volume_ratio if present (today vs prior period)
         vol_ratio = float(snapshot_row.get("volume_ratio", 1.0) or 1.0)
 
@@ -461,9 +471,10 @@ def compute_volume_inflow(moomoo_client: Optional[MoomooClient], code: str, snap
         except Exception:
             pass
 
-    detail = f"Vol today ~{fmt(vol_today)} | ratio {fmt(vol_ratio, 1)} | inflow {fmt(inflow)}"
+    detail = f"Vol today ~{fmt(vol_today)} | $turnover ~{fmt(turnover_today)} | ratio {fmt(vol_ratio, 1)} | inflow {fmt(inflow)}"
     return {
         "volume_today": vol_today,
+        "turnover_today": turnover_today,
         "volume_ratio": vol_ratio or 1.0,
         "inflow": inflow,
         "detail": detail
@@ -834,13 +845,18 @@ def score_setup(
     else:
         warnings.append("Weak VWAP floor")
 
-    # Volume
+    # Volume (share + $ turnover). High $ volume rewarded extra as it matches user's past winning trades
+    # in names like AAPL, NVDA, ADBE, MRVL, TXN, HOOD which often rank high on dollar volume even if share count varies.
     vr = vol_info.get("volume_ratio", 1.0) or 1.0
+    turnover_today = vol_info.get("turnover_today", 0) or 0
     vol_pts = min(SCORE_WEIGHTS["volume"], SCORE_WEIGHTS["volume"] * max(0, (vr - 0.8) / 1.5))
     score += vol_pts
     if is_top_volume:
         score += 0.4
         reasons.append("Top traded volume today")
+    if turnover_today >= MIN_ABS_TURNOVER_TODAY:
+        score += 0.3
+        reasons.append(f"High $ turnover ${fmt(turnover_today / 1_000_000, 0)}M")
     if vr >= 1.3:
         reasons.append(f"Volume surge x{fmt(vr,1)}")
     elif vr < 0.7:
@@ -947,7 +963,11 @@ def analyze_ticker(ticker: str, client: Optional[MoomooClient], use_moomoo: bool
     fund = get_fundamentals_snapshot(snap_row, yf_info(norm))
 
     # volume rank n/a for single; user sees absolute
-    is_top_vol = (vol.get("volume_today", 0) or 0) > MIN_ABS_VOLUME_TODAY
+    # use turnover if available for high $ names from past winners
+    is_top_vol = (
+        (vol.get("turnover_today", 0) or 0) > MIN_ABS_TURNOVER_TODAY or
+        (vol.get("volume_today", 0) or 0) > MIN_ABS_VOLUME_TODAY
+    )
 
     score, reasons, warnings = score_setup(gap, ma, vwap, vol, gex, earn, levels, is_top_vol)
 
@@ -1021,12 +1041,17 @@ def scan_watchlist(tickers: List[str], client: Optional[MoomooClient], use_moomo
         # fallback: will compute per ticker slow path
         console.print("[yellow]No batch snapshot; falling back to per-ticker (slower).[/yellow]")
 
-    # Compute volumes for ranking
+    # Compute volumes for ranking -- prefer turnover (dollar volume) because user's winning trades
+    # (AAPL, NVDA, ADBE, MRVL, TXN, HOOD etc) are often high-priced names where $ volume better indicates "top traded".
     vol_map = {}
-    if not snap_df.empty and "code" in snap_df and "volume" in snap_df:
+    if not snap_df.empty and "code" in snap_df:
         for _, r in snap_df.iterrows():
             c = r["code"]
-            vol_map[c] = float(r.get("volume", 0) or 0)
+            turnover = float(r.get("turnover", 0) or 0)
+            vol = float(r.get("volume", 0) or 0)
+            # Use turnover if available and >0, else fall back to share volume
+            val = turnover if turnover > 0 else vol
+            vol_map[c] = val
     # rank
     ranked = sorted(vol_map.items(), key=lambda x: x[1], reverse=True)
     top_vol_codes = set([c for c, _ in ranked[:max(1, int(len(ranked) * TOP_VOLUME_PCT_FOR_FLAG))]])
@@ -1060,7 +1085,11 @@ def scan_watchlist(tickers: List[str], client: Optional[MoomooClient], use_moomo
             gex = compute_gex(client if use_moomoo else None, code, current_price)
             earn = compute_earnings_backtest(client if use_moomoo else None, code)
 
-            is_top = (code in top_vol_codes) or (vol.get("volume_today", 0) or 0) > MIN_ABS_VOLUME_TODAY
+            is_top = (
+                (code in top_vol_codes) or
+                (vol.get("turnover_today", 0) or 0) > MIN_ABS_TURNOVER_TODAY or
+                (vol.get("volume_today", 0) or 0) > MIN_ABS_VOLUME_TODAY
+            )
 
             sc, reasons, _ = score_setup(gap, ma, vwap, vol, gex, earn, levels, is_top)
 

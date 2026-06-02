@@ -13,6 +13,10 @@ A fully runnable Python CLI program for finding short-term swing trade setups (t
 
 See SpotGamma GEX primer: https://support.spotgamma.com/hc/en-us/articles/15214161607827-GEX-Gamma-Exposure-Explained-What-It-Is-and-How-SpotGamma-Uses-It
 
+**Updated based on user's winning trades** (from /Users/martingong/Documents/Past Trades.rtf -- 27 trades, +$1,589 realized P&L over recent days in AAPL, NVDA, MRVL, TXN, ADBE, NOW, HOOD, SOFI, QCOM etc.):
+- Watchlist expanded with frequent winners from the log.
+- "Top traded" / volume scoring now uses **dollar turnover** (not just share count) to better surface the high-priced names that generated wins.
+
 **Data Sources**:
 - Primary: Moomoo OpenD + moomoo-api (real-time quotes, k-lines, option chains/greeks/OI, capital flow, earnings price history, snapshots with PE).
 - Supplement: yfinance (earnings calendar, forward PE, fallback prices, robust intraday for demo).
