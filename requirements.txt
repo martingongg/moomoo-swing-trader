@@ -1,0 +1,6 @@
+moomoo-api>=10.6
+yfinance>=0.2.40
+pandas>=2.0
+numpy>=1.26
+rich>=13.0
+python-dateutil>=2.8
