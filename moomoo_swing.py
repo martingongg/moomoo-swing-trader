@@ -999,6 +999,8 @@ def analyze_ticker(ticker: str, client: Optional[MoomooClient], use_moomoo: bool
                  f"Call Wall: {fmt(gex.get('call_wall'))}   Put Wall: {fmt(gex.get('put_wall'))}\n"
                  f"Regime: {gex.get('regime')}\n"
                  f"{gex.get('detail')}", title="Dealer GEX (Gamma Exposure) - 0 to 5 DTE", border_style="magenta"))
+    if (gex.get("net_gex", 0) or 0) > 0:
+        rprint("[dim]Note (from past winning option trades): Positive GEX + stabilizing regime often good for selling premium (short strangles/iron condors) on these names rather than just long stock.[/dim]")
 
     # Earnings
     rprint(Panel(f"{earn['detail']}\n{fund['detail']}\nCount: {earn.get('count',0)}", title="Earnings Outlook + Backtest (5d post)", border_style="cyan"))
