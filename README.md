@@ -149,18 +149,37 @@ For production scans, consider running during market hours, cache results, add a
 
 ## Git
 
-This project is set up for git. After cloning or download:
+This project is hosted at:
+
+**https://github.com/martingongg/moomoo-swing-trader**
+
+To clone:
 
 ```bash
-git init
-git add .
-git commit -m "Initial moomoo gap-up swing scanner"
-# then add your github remote and push
-git remote add origin git@github.com:YOURUSER/moomoo-swing-trader.git
-git branch -M main
-git push -u origin main
+git clone https://github.com/martingongg/moomoo-swing-trader.git
+cd moomoo-swing-trader
 ```
 
+The code was uploaded using GitHub CLI after initial local commits.
+```
+
+Also update the extending or other? No need.
+
+To make the remote display nice, I can remove and re-add the remote with proper spacing, but since it's internal, perhaps run `git remote set-url` or just leave.
+
+The mangling is only in the tool's output formatting here; in a real terminal `git remote -v` looks normal.
+
+To confirm, I can leave it.
+
+Optionally, update README with more, like mention HTTPS was used.
+
+But good enough.
+
+Now, since gh might have set the remote to SSH or HTTPS.
+
+From previous, gh used HTTPS because of the auth protocol.
+
+Let's check the actual remote now after the create.
 ## Credits / References
 
 - Moomoo Open API docs: https://openapi.moomoo.com/moomoo-api-doc/en/
