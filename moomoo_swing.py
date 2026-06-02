@@ -54,7 +54,7 @@ console = Console()
 
 DEFAULT_WATCHLIST = [
     "AAPL", "TSLA", "NVDA", "AMD", "META", "AMZN", "MSFT", "GOOGL", "SMCI", "PLTR",
-    "COIN", "MSTR", "ARM", "AVGO", "CRM", "INTC", "AMD", "QCOM", "MU", "SNOW",
+    "COIN", "MSTR", "ARM", "AVGO", "CRM", "INTC", "QCOM", "MU", "SNOW",
     "UBER", "ABNB", "SHOP", "RBLX", "DKNG", "HOOD", "SOFI", "LCID", "RIVN", "F",
     "BAC", "JPM", "XOM", "CVX", "UNH", "LLY", "JNJ", "PFE", "MRNA", "BABA",
 ]
